@@ -1,35 +1,26 @@
 import boto3
+import schedule
 
-ec2_client = boto3.client('ec2', region_name="us-east-2")
-ec2_resource = boto3.resource('ec2', region_name="us-east-2")
+ec2_client = boto3.client('ec2', region_name="us-east-1")
+ec2_resource = boto3.resource('ec2', region_name="us-east-1")
 
-new_vpc = ec2_resource.create_vpc(
-    CidrBlock="10.0.0.0/16"
-)
 
-new_vpc.create_tags(
-    Tags=[
-        {
-            'Key': 'Name',
-            'Value': 'my-vpc'
-        }
-    ]
-)
+def check_instance_status():
+    statuses = ec2_client.describe_instance_status(
+        IncludeAllInstances=True
+    )
+    for status in statuses['InstanceStatuses']:
+        ins_status = status['InstanceStatus']['Status']
+        sys_status = status['SystemStatus']['Status']
+        state = status['InstanceState']['Name']
+        print(f"Instance {status['InstanceId']} is {state} with instance status {ins_status} and system status {sys_status}")
+    print("#############################\n")
 
-new_vpc.create_subnet(
-    CidrBlock="10.0.1.0/24"
-)
 
-new_vpc.create_subnet(
-    CidrBlock="10.0.2.0/24"
-)
+schedule.every(5).seconds.do(check_instance_status)
+# schedule.every().day.at("1:00")
+# schedule.every().monday.at("13:00")
 
-all_available_vpcs = ec2_client.describe_vpcs()
-vpcs = all_available_vpcs["Vpcs"]
+while True:
+    schedule.run_pending()
 
-for vpc in vpcs:
-    print(vpc["VpcId"])
-    cidr_block_assoc_sets = vpc["CidrBlockAssociationSet"]
-
-    for assoc_set in cidr_block_assoc_sets:
-        print(assoc_set["CidrBlockState"])
