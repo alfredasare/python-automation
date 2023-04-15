@@ -1,6 +1,7 @@
 import requests
 import smtplib
 import os
+import paramiko
 
 EMAIL_ADDRESS = os.environ.get('EMAIL_ADDRESS')
 EMAIL_PASSWORD = os.environ.get('EMAIL_PASSWORD')
@@ -16,6 +17,16 @@ def send_notification(email_msg):
         smtp.sendmail(EMAIL_ADDRESS, EMAIL_ADDRESS, message)
 
 
+def restart_container():
+    print('Restarting the application...')
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())  # Confirm to add host key to server to allow connection
+    ssh.connect(hostname='172.104.226.116', username='root', key_filename='/Users/alfredamoah/.ssh/id_rsa')
+    stdin, stdout, stderr = ssh.exec_command('docker start 558d2a4099a0')
+    print(stdout.readlines())
+    ssh.close()
+
+
 def monitor_application():
     try:
         response = requests.get("http://172-104-226-116.ip.linodeusercontent.com:8080")
@@ -25,6 +36,7 @@ def monitor_application():
             print("Application Down. Fix it")
             msg = f'Application returned {response.status_code}'
             send_notification(msg)
+            restart_container()
     except Exception as ex:
         print(f'Connection error happened: {ex}')
         msg = 'Application not accessible at all'
