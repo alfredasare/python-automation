@@ -2,9 +2,14 @@ import requests
 import smtplib
 import os
 import paramiko
+import linode_api4
+import time
+import schedule
+
 
 EMAIL_ADDRESS = os.environ.get('EMAIL_ADDRESS')
 EMAIL_PASSWORD = os.environ.get('EMAIL_PASSWORD')
+LINODE_TOKEN = os.environ.get('LINODE_TOKEN')
 
 
 def send_notification(email_msg):
@@ -27,6 +32,22 @@ def restart_container():
     ssh.close()
 
 
+def restart_server_and_container():
+    # restart linode server
+    print('Rebooting the server...')
+    client = linode_api4.LinodeClient(LINODE_TOKEN)
+    nginx_server = client.load(linode_api4.Instance, 45162501)
+    nginx_server.reboot()
+
+    # restart the application
+    while True:
+        nginx_server = client.load(linode_api4.Instance, 45162501)
+        if nginx_server.status == 'running':
+            time.sleep(5)
+            restart_container()
+            break
+
+
 def monitor_application():
     try:
         response = requests.get("http://172-104-226-116.ip.linodeusercontent.com:8080")
@@ -41,6 +62,13 @@ def monitor_application():
         print(f'Connection error happened: {ex}')
         msg = 'Application not accessible at all'
         send_notification(msg)
+        restart_server_and_container()
 
 
-monitor_application()
+# monitor_application()
+
+schedule.every(5).minutes.do(monitor_application)
+
+while True:
+    schedule.run_pending()
+
